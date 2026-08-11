@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thing:thing-descriptions bindingId="iometer"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
+
+	<thing-type id="device">
+		<label>IOmeter</label>
+		<description>An IOmeter Bridge providing live electrical utility meter readings via SSE and status via
+			polling.</description>
+		<semantic-equipment-tag>ElectricMeter</semantic-equipment-tag>
+
+		<channels>
+			<channel id="power" typeId="power"/>
+			<channel id="power-phase1" typeId="power-phase">
+				<label>Power Phase 1</label>
+			</channel>
+			<channel id="power-phase2" typeId="power-phase">
+				<label>Power Phase 2</label>
+			</channel>
+			<channel id="power-phase3" typeId="power-phase">
+				<label>Power Phase 3</label>
+			</channel>
+			<channel id="energy-import" typeId="energy-import"/>
+			<channel id="energy-import-tariff1" typeId="energy-import">
+				<label>Energy Import Tariff 1</label>
+			</channel>
+			<channel id="energy-import-tariff2" typeId="energy-import">
+				<label>Energy Import Tariff 2</label>
+			</channel>
+			<channel id="energy-export" typeId="energy-export"/>
+			<channel id="bridge-rssi" typeId="rssi">
+				<label>Bridge WiFi RSSI</label>
+			</channel>
+			<channel id="core-rssi" typeId="rssi">
+				<label>Core RF RSSI</label>
+			</channel>
+			<channel id="core-connection-status" typeId="core-connection-status"/>
+			<channel id="core-power-status" typeId="core-power-status"/>
+			<channel id="core-battery-level" typeId="core-battery-level"/>
+			<channel id="core-attachment-status" typeId="core-attachment-status"/>
+			<channel id="core-pin-status" typeId="core-pin-status"/>
+		</channels>
+
+		<representation-property>hostname</representation-property>
+
+		<config-description>
+			<parameter name="hostname" type="text" required="true">
+				<context>network-address</context>
+				<label>Hostname</label>
+				<description>Hostname or IP address of the IOmeter Bridge</description>
+			</parameter>
+			<parameter name="statusRefreshInterval" type="integer" unit="s" min="10" max="300">
+				<label>Status Refresh Interval</label>
+				<description>Interval the /v1/status endpoint is polled in seconds. Live meter readings are pushed
+					continuously via
+					SSE and are not affected by this setting.</description>
+				<default>30</default>
+				<advanced>true</advanced>
+			</parameter>
+		</config-description>
+	</thing-type>
+
+	<channel-type id="power">
+		<item-type>Number:Power</item-type>
+		<label>Power</label>
+		<description>Current net power. Positive means consumption, negative means feed-in.</description>
+		<category>Energy</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Power</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="power-phase" advanced="true">
+		<item-type>Number:Power</item-type>
+		<label>Power Phase</label>
+		<description>Power on a single phase. Only available when the meter provides per-phase readings.</description>
+		<category>Energy</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Power</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="energy-import">
+		<item-type>Number:Energy</item-type>
+		<label>Energy Import</label>
+		<description>Cumulative energy consumption counter.</description>
+		<category>Energy</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Energy</tag>
+		</tags>
+		<state readOnly="true" pattern="%.0f %unit%"/>
+	</channel-type>
+
+	<channel-type id="energy-export">
+		<item-type>Number:Energy</item-type>
+		<label>Energy Export</label>
+		<description>Cumulative energy production (feed-in) counter.</description>
+		<category>Energy</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Energy</tag>
+		</tags>
+		<state readOnly="true" pattern="%.0f %unit%"/>
+	</channel-type>
+
+	<channel-type id="rssi" advanced="true">
+		<item-type unitHint="dBm">Number:Power</item-type>
+		<label>RSSI</label>
+		<description>Received signal strength indicator.</description>
+		<category>QualityOfService</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>RSSI</tag>
+		</tags>
+		<state readOnly="true" pattern="%d dBm"/>
+	</channel-type>
+
+	<channel-type id="core-connection-status" advanced="true">
+		<item-type>String</item-type>
+		<label>Core Connection Status</label>
+		<description>868MHz RF link status between IOmeter Core and IOmeter Bridge.</description>
+		<state readOnly="true">
+			<options>
+				<option value="connected">Connected</option>
+				<option value="disconnected">Disconnected</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="core-power-status" advanced="true">
+		<item-type>String</item-type>
+		<label>Core Power Status</label>
+		<description>Power supply of the IOmeter Core.</description>
+		<state readOnly="true">
+			<options>
+				<option value="battery">Battery</option>
+				<option value="wired">Wired</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="core-battery-level" advanced="true">
+		<item-type>Number:Dimensionless</item-type>
+		<label>Core Battery Level</label>
+		<description>Battery level of the IOmeter Core. Only available when powered by battery.</description>
+		<category>Battery</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Level</tag>
+		</tags>
+		<state readOnly="true" pattern="%d %%"/>
+	</channel-type>
+
+	<channel-type id="core-attachment-status" advanced="true">
+		<item-type>String</item-type>
+		<label>Core Attachment Status</label>
+		<description>Whether the IOmeter Core is attached to the utility meter's optical port.</description>
+		<state readOnly="true">
+			<options>
+				<option value="attached">Attached</option>
+				<option value="detached">Detached</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="core-pin-status" advanced="true">
+		<item-type>String</item-type>
+		<label>Core PIN Status</label>
+		<description>Whether the utility meter PIN has been entered on the IOmeter Core.</description>
+		<state readOnly="true">
+			<options>
+				<option value="entered">Entered</option>
+				<option value="pending">Pending</option>
+				<option value="missing">Missing</option>
+			</options>
+		</state>
+	</channel-type>
+
+</thing:thing-descriptions>
