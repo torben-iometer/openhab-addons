@@ -70,6 +70,20 @@ public class IometerHandler extends BaseThingHandler {
         this.httpClientFactory = httpClientFactory;
     }
 
+    /**
+     * Test seam allowing unit tests to inject a mocked HTTP client without running {@link #initialize()}.
+     */
+    void setHttpClient(HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
+
+    /**
+     * Test seam allowing unit tests to inject a configuration without running {@link #initialize()}.
+     */
+    void setConfig(IometerConfiguration config) {
+        this.config = config;
+    }
+
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         if (command instanceof RefreshType) {
@@ -133,7 +147,7 @@ public class IometerHandler extends BaseThingHandler {
         }
     }
 
-    private void onReadingEvent(String json) {
+    void onReadingEvent(String json) {
         try {
             ReadingDTO reading = gson.fromJson(json, ReadingDTO.class);
             ReadingDTO.Meter meter = reading != null ? reading.meter : null;
@@ -198,7 +212,7 @@ public class IometerHandler extends BaseThingHandler {
         logger.debug("IOmeter SSE connection error for {}: {}", thing.getUID(), error.getMessage());
     }
 
-    private void pollStatus() {
+    void pollStatus() {
         HttpClient client = httpClient;
         if (client == null) {
             return;
@@ -227,7 +241,7 @@ public class IometerHandler extends BaseThingHandler {
         }
     }
 
-    private void applyStatus(StatusDTO status) {
+    void applyStatus(StatusDTO status) {
         Map<String, String> properties = new HashMap<>(editProperties());
         String installationId = status.installationId;
         if (installationId != null) {
