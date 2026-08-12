@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.openhab.binding.iometer.internal.IometerBindingConstants.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -104,6 +105,15 @@ class IometerHandlerTest {
             """;
 
     /**
+     * All channels that {@code IometerHandler} resets to {@code UNDEF} when the thing goes OFFLINE.
+     */
+    private static final List<String> ALL_DATA_CHANNELS = List.of(CHANNEL_POWER, CHANNEL_POWER_PHASE1,
+            CHANNEL_POWER_PHASE2, CHANNEL_POWER_PHASE3, CHANNEL_ENERGY_IMPORT, CHANNEL_ENERGY_IMPORT_TARIFF1,
+            CHANNEL_ENERGY_IMPORT_TARIFF2, CHANNEL_ENERGY_EXPORT, CHANNEL_BRIDGE_RSSI, CHANNEL_CORE_CONNECTION_STATUS,
+            CHANNEL_CORE_RSSI, CHANNEL_CORE_POWER_STATUS, CHANNEL_CORE_BATTERY_LEVEL, CHANNEL_CORE_ATTACHMENT_STATUS,
+            CHANNEL_CORE_PIN_STATUS);
+
+    /**
      * Bundles the mocks needed to exercise a freshly constructed {@link IometerHandler} without
      * running the full {@code initialize()} lifecycle.
      */
@@ -127,6 +137,13 @@ class IometerHandlerTest {
         return new ChannelUID(THING_UID, id);
     }
 
+    private static void verifyAllChannelsSetUndef(ThingHandlerCallback callback) {
+        for (String channelId : ALL_DATA_CHANNELS) {
+            verify(callback).stateUpdated(channel(channelId), UnDefType.UNDEF);
+        }
+        verify(callback, times(ALL_DATA_CHANNELS.size())).stateUpdated(any(), eq(UnDefType.UNDEF));
+    }
+
     @Test
     void initializeWithBlankHostnameSetsConfigurationError() {
         Fixture fx = newFixture();
@@ -136,6 +153,7 @@ class IometerHandlerTest {
 
         verify(fx.callback()).statusUpdated(eq(fx.thing()), argThat(info -> info.getStatus() == ThingStatus.OFFLINE
                 && info.getStatusDetail() == ThingStatusDetail.CONFIGURATION_ERROR));
+        verifyAllChannelsSetUndef(fx.callback());
         verifyNoInteractions(fx.httpClientFactory());
     }
 
@@ -175,12 +193,26 @@ class IometerHandlerTest {
     }
 
     @Test
-    void onReadingEventWithMalformedJsonDoesNotUpdateOrThrow() {
+    void onReadingEventWithMalformedJsonSetsOfflineCommunicationErrorAndResetsChannels() {
         Fixture fx = newFixture();
 
         fx.handler().onReadingEvent("{not valid json");
 
-        verifyNoInteractions(fx.callback());
+        verifyAllChannelsSetUndef(fx.callback());
+        verify(fx.callback()).statusUpdated(eq(fx.thing()), eq(new ThingStatusInfo(ThingStatus.OFFLINE,
+                ThingStatusDetail.COMMUNICATION_ERROR, "Could not parse reading event")));
+    }
+
+    @Test
+    void onReadingEventGoingOfflineAfterOnlineResetsPreviouslyReportedValues() {
+        Fixture fx = newFixture();
+
+        fx.handler().onReadingEvent(READING_JSON);
+        verify(fx.callback()).stateUpdated(channel(CHANNEL_POWER), new QuantityType<>(512.5, Units.WATT));
+
+        fx.handler().onReadingEvent("{not valid json");
+
+        verify(fx.callback()).stateUpdated(channel(CHANNEL_POWER), UnDefType.UNDEF);
     }
 
     @Test
@@ -224,7 +256,7 @@ class IometerHandlerTest {
     }
 
     @Test
-    void pollStatusWithHttpErrorSetsOfflineCommunicationError() throws Exception {
+    void pollStatusWithHttpErrorSetsOfflineCommunicationErrorAndResetsChannels() throws Exception {
         Fixture fx = newFixture();
         fx.handler().setHttpClient(mockHttpClientReturning(500, ""));
         fx.handler().setConfig(configWithHostname());
@@ -233,7 +265,7 @@ class IometerHandlerTest {
 
         verify(fx.callback()).statusUpdated(eq(fx.thing()),
                 eq(new ThingStatusInfo(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, "HTTP status 500")));
-        verify(fx.callback(), never()).stateUpdated(any(), any());
+        verifyAllChannelsSetUndef(fx.callback());
         verify(fx.thing(), never()).setProperty(any(), any());
     }
 

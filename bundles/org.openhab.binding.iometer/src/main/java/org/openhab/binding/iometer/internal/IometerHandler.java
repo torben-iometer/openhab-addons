@@ -56,6 +56,12 @@ import com.google.gson.JsonSyntaxException;
 @NonNullByDefault
 public class IometerHandler extends BaseThingHandler {
 
+    private static final List<String> DATA_CHANNELS = List.of(CHANNEL_POWER, CHANNEL_POWER_PHASE1, CHANNEL_POWER_PHASE2,
+            CHANNEL_POWER_PHASE3, CHANNEL_ENERGY_IMPORT, CHANNEL_ENERGY_IMPORT_TARIFF1, CHANNEL_ENERGY_IMPORT_TARIFF2,
+            CHANNEL_ENERGY_EXPORT, CHANNEL_BRIDGE_RSSI, CHANNEL_CORE_CONNECTION_STATUS, CHANNEL_CORE_RSSI,
+            CHANNEL_CORE_POWER_STATUS, CHANNEL_CORE_BATTERY_LEVEL, CHANNEL_CORE_ATTACHMENT_STATUS,
+            CHANNEL_CORE_PIN_STATUS);
+
     private final Logger logger = LoggerFactory.getLogger(IometerHandler.class);
     private final HttpClientFactory httpClientFactory;
     private final Gson gson = new Gson();
@@ -96,7 +102,7 @@ public class IometerHandler extends BaseThingHandler {
         config = getConfigAs(IometerConfiguration.class);
 
         if (config.hostname.isBlank()) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "Hostname must be configured");
+            setOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Hostname must be configured");
             return;
         }
 
@@ -107,8 +113,7 @@ public class IometerHandler extends BaseThingHandler {
         try {
             client.start();
         } catch (Exception e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                    "Could not start HTTP client: " + e.getMessage());
+            setOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Could not start HTTP client: " + e.getMessage());
             return;
         }
 
@@ -165,6 +170,7 @@ public class IometerHandler extends BaseThingHandler {
             }
         } catch (JsonSyntaxException e) {
             logger.debug("Could not parse IOmeter reading event: {}", json, e);
+            setOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Could not parse reading event");
         }
     }
 
@@ -210,6 +216,16 @@ public class IometerHandler extends BaseThingHandler {
 
     private void onSseError(Throwable error) {
         logger.debug("IOmeter SSE connection error for {}: {}", thing.getUID(), error.getMessage());
+        setOffline(ThingStatusDetail.COMMUNICATION_ERROR, "SSE connection error: " + error.getMessage());
+    }
+
+    /**
+     * Marks the thing OFFLINE and resets all data channels to {@code UNDEF} so that stale values are
+     * neither shown in the UI nor tracked by persistence while the device is unreachable.
+     */
+    private void setOffline(ThingStatusDetail detail, @Nullable String description) {
+        DATA_CHANNELS.forEach(channelId -> updateState(channelId, UnDefType.UNDEF));
+        updateStatus(ThingStatus.OFFLINE, detail, description);
     }
 
     void pollStatus() {
@@ -229,15 +245,15 @@ public class IometerHandler extends BaseThingHandler {
                 }
                 updateStatus(ThingStatus.ONLINE);
             } else {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-                        "HTTP status " + response.getStatus());
+                setOffline(ThingStatusDetail.COMMUNICATION_ERROR, "HTTP status " + response.getStatus());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (JsonSyntaxException e) {
             logger.debug("Could not parse IOmeter status response", e);
+            setOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Could not parse status response");
         } catch (Exception e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+            setOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
         }
     }
 
